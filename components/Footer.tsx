@@ -61,7 +61,7 @@ export function Footer() {
       <div className="border-t border-white/10">
         <Container className="flex flex-col gap-2 py-6 text-xs text-white/50 sm:flex-row sm:justify-between">
           <p>© {new Date().getFullYear()} OpenDoor. MVP demo — all profiles and data shown are fictional.</p>
-          <p>Mentoring hours shown are platform-recorded, not officially verified.</p>
+          <p>Mentoring hours count as volunteer hours only after school approval.</p>
         </Container>
       </div>
     </footer>

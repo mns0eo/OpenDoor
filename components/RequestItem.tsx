@@ -2,12 +2,14 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { CalendarClock, MapPin, MessageSquareQuote, Video } from "lucide-react";
+import { CalendarClock, MapPin, MessageCircle, MessageSquareQuote, Video } from "lucide-react";
+import { chatState } from "@/lib/sessions";
+import { useStore } from "@/lib/store";
 import { CATEGORY_MAP } from "@/lib/categories";
 import type { MentoringRequest } from "@/lib/types";
 import { cn, formatDateTime, formatHours } from "@/lib/utils";
 import { CategoryIcon } from "./CategoryIcon";
-import { Avatar, Card, StatusBadge } from "./ui";
+import { Avatar, buttonClass, Card, StatusBadge } from "./ui";
 
 /** A mentoring request/session, shown from either side. `actions` renders role-specific controls. */
 export function RequestItem({
@@ -24,6 +26,10 @@ export function RequestItem({
   footer?: React.ReactNode;
 }) {
   const [expanded, setExpanded] = useState(false);
+  const { db } = useStore();
+  const chat = chatState(r);
+  const msgCount = db?.messages.filter((m) => m.requestId === r.id).length ?? 0;
+  const showChat = chat.kind === "open" || (chat.kind === "closed" && msgCount > 0) || (perspective === "admin" && msgCount > 0);
   const isPast = new Date(r.preferredAt).getTime() < Date.now();
 
   return (
@@ -81,7 +87,18 @@ export function RequestItem({
             </p>
           )}
         </div>
-        {actions && <div className="flex shrink-0 flex-wrap gap-2 sm:flex-col sm:items-stretch">{actions}</div>}
+        {(actions || showChat) && (
+          <div className="flex shrink-0 flex-wrap gap-2 sm:flex-col sm:items-stretch">
+            {showChat && (
+              <Link href={`/sessions/${r.id}`} className={buttonClass(chat.kind === "open" && perspective !== "admin" ? "secondary" : "ghost", "sm")}>
+                <MessageCircle className="h-4 w-4" />
+                {chat.kind === "open" && perspective !== "admin" ? "Chat" : "View chat"}
+                {msgCount > 0 && <span className="rounded-full bg-white/70 px-1.5 text-[11px]">{msgCount}</span>}
+              </Link>
+            )}
+            {actions}
+          </div>
+        )}
       </div>
       {footer && <div className="mt-4 border-t border-line pt-4">{footer}</div>}
     </Card>

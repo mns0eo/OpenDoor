@@ -10,14 +10,20 @@ import {
   FileText,
   MapPin,
   MessageCircle,
+  MessageSquareQuote,
   PlayCircle,
   Sparkles,
   UserX,
   Video,
 } from "lucide-react";
+import { formatLabel } from "@/components/FormatPicker";
+import { IntroVideoPlayer } from "@/components/IntroVideo";
+import { ReviewCard } from "@/components/ReviewCard";
+import { openSlots } from "@/lib/sessions";
+import { formatDateTime } from "@/lib/utils";
 import { AvailabilityIndicator } from "@/components/Availability";
 import { CategoryIcon } from "@/components/CategoryIcon";
-import { Alert, Avatar, Badge, buttonClass, ButtonLink, Card, Container, DemoTag, EmptyState, LoadingState } from "@/components/ui";
+import { Alert, Avatar, Badge, buttonClass, ButtonLink, Card, Container, DemoTag, EmptyState, LoadingState, Stars } from "@/components/ui";
 import { CATEGORY_MAP } from "@/lib/categories";
 import { useStore } from "@/lib/store";
 
@@ -46,11 +52,17 @@ export default function MentorProfilePage() {
 
   const completed = db.requests.filter((r) => r.mentorId === mentor.id && r.status === "completed").length;
   const unavailable = mentor.availability === "unavailable";
+  const slots = openSlots(db, mentor.id);
+  const publicReviews = db.feedback.filter((f) => f.mentorId === mentor.id && f.consentToShare && f.review).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  const avg = publicReviews.length ? publicReviews.reduce((s, f) => s + f.rating, 0) / publicReviews.length : 0;
+  const nameOf = (id: string) => db.users.find((u) => u.id === id)?.name ?? "Mentee";
 
   const requestCta = isOwner ? (
     <ButtonLink href="/dashboard/profile" variant="outline" className="w-full">Edit your profile</ButtonLink>
-  ) : unavailable ? (
-    <span className={buttonClass("primary", "lg", "w-full opacity-50 cursor-not-allowed")} aria-disabled>Not taking requests</span>
+  ) : unavailable || slots.length === 0 ? (
+    <span className={buttonClass("primary", "lg", "w-full opacity-50 cursor-not-allowed")} aria-disabled>
+      {unavailable ? "Not taking requests" : "No open times right now"}
+    </span>
   ) : (
     <Link href={`/mentors/${mentor.id}/request`} className={buttonClass("primary", "lg", "w-full")}>
       Request Mentoring
@@ -96,6 +108,11 @@ export default function MentorProfilePage() {
                 {CATEGORY_MAP[c].label}
               </Link>
             ))}
+            {mentor.otherAreas.map((a) => (
+              <span key={a} className="inline-flex items-center gap-1.5 rounded-full bg-sky px-3 py-1.5 text-sm text-navy">
+                <Sparkles className="h-3.5 w-3.5" /> {a}
+              </span>
+            ))}
           </div>
         </div>
       </section>
@@ -103,6 +120,10 @@ export default function MentorProfilePage() {
       <div className="mt-8 grid gap-8 lg:grid-cols-[1fr_340px]">
         {/* Main */}
         <div className="space-y-6">
+          <Section title="Introduction video" icon={<PlayCircle className="h-4 w-4" />}>
+            <IntroVideoPlayer videoId={mentor.introVideoId} name={mentor.name} />
+          </Section>
+
           <Section title="About" icon={<MessageCircle className="h-4 w-4" />}>
             <p className="whitespace-pre-line leading-relaxed text-ink-muted">{mentor.bio || mentor.intro}</p>
           </Section>
@@ -142,16 +163,30 @@ export default function MentorProfilePage() {
             </Section>
           </div>
 
-          <Section title="Media" icon={<PlayCircle className="h-4 w-4" />}>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <MediaPlaceholder icon={<PlayCircle className="h-6 w-6" />} title="Introduction video" />
-              <MediaPlaceholder icon={<FileText className="h-6 w-6" />} title="Résumé / portfolio" />
-            </div>
+          <Section title={`Reviews${publicReviews.length ? ` (${publicReviews.length})` : ""}`} icon={<MessageSquareQuote className="h-4 w-4" />}>
+            {publicReviews.length === 0 ? (
+              <p className="text-sm text-ink-faint">No public reviews yet.</p>
+            ) : (
+              <>
+                <div className="mb-4 flex items-center gap-2">
+                  <span className="text-2xl font-semibold text-navy">{avg.toFixed(1)}</span>
+                  <Stars value={avg} />
+                  <span className="text-xs text-ink-faint">from mentees who chose to share their review</span>
+                </div>
+                <ul className="space-y-3">
+                  {publicReviews.map((f) => <ReviewCard key={f.id} f={f} menteeName={nameOf(f.menteeId)} mentorName={mentor.name} />)}
+                </ul>
+              </>
+            )}
+          </Section>
+
+          <Section title="Résumé / portfolio" icon={<FileText className="h-4 w-4" />}>
+            <MediaPlaceholder icon={<FileText className="h-6 w-6" />} title="Résumé uploads" />
           </Section>
         </div>
 
         {/* Sidebar */}
-        <aside className="lg:sticky lg:top-24 lg:self-start">
+        <aside className="order-first lg:order-none lg:sticky lg:top-24 lg:self-start">
           <Card className="p-6">
             <p className="font-semibold text-navy">Book a conversation</p>
             <p className="mt-1 text-sm text-ink-muted">Free for TVS students. {mentor.name.split(" ")[0]} will accept or suggest another time.</p>
@@ -160,19 +195,18 @@ export default function MentorProfilePage() {
               <div className="flex gap-3">
                 <CalendarClock className="mt-0.5 h-4 w-4 shrink-0 text-teal" aria-hidden />
                 <div>
-                  <dt className="font-medium text-navy">General availability</dt>
-                  <dd className="text-ink-muted">{mentor.availabilityNote || "Flexible"}</dd>
+                  <dt className="font-medium text-navy">Open times</dt>
+                  <dd className="text-ink-muted">
+                    {slots.length ? <>{slots.length} in the next 4 weeks · next {formatDateTime(slots[0]!)}</> : "None open right now"}
+                  </dd>
+                  {mentor.availabilityNote && <dd className="text-xs text-ink-faint">Usually: {mentor.availabilityNote}</dd>}
                 </div>
               </div>
               <div className="flex gap-3">
                 {mentor.formats.includes("online") ? <Video className="mt-0.5 h-4 w-4 shrink-0 text-teal" aria-hidden /> : <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-teal" aria-hidden />}
                 <div>
                   <dt className="font-medium text-navy">Mentoring formats</dt>
-                  <dd className="mt-1 flex flex-wrap gap-1.5">
-                    {mentor.formats.map((f) => (
-                      <Badge key={f} tone="sky">{f === "online" ? "Online" : "In person (on campus)"}</Badge>
-                    ))}
-                  </dd>
+                  <dd className="text-ink-muted">{formatLabel(mentor.formats)}</dd>
                 </div>
               </div>
               <div className="flex gap-3">
@@ -219,7 +253,7 @@ function TagList({ items, tone }: { items: string[]; tone: "sky" | "neutral" }) 
 
 function MediaPlaceholder({ icon, title }: { icon: React.ReactNode; title: string }) {
   return (
-    <div className="flex aspect-video flex-col items-center justify-center rounded-xl border border-dashed border-line bg-paper text-center text-ink-faint">
+    <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-line bg-paper py-8 text-center text-ink-faint">
       {icon}
       <p className="mt-2 text-sm font-medium text-ink-muted">{title}</p>
       <p className="text-xs">Coming soon</p>

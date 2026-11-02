@@ -41,9 +41,9 @@ function ThankYou({ mentorName }: { mentorName: string }) {
     <Container className="max-w-xl py-16">
       <Card className="animate-fade-up p-10 text-center">
         <CheckCircle2 className="mx-auto h-10 w-10 text-teal" />
-        <h1 className="mt-5 text-2xl font-semibold text-navy">Thank you for your feedback!</h1>
+        <h1 className="mt-5 text-2xl font-semibold text-navy">Thank you for your review!</h1>
         <p className="mt-2 text-ink-muted">
-          It helps {mentorName.split(" ")[0]} and the OpenDoor team make every session better. Your feedback is visible only to administrators.
+          It helps {mentorName.split(" ")[0]} and the OpenDoor team make every session better. Your private feedback is visible only to administrators.
         </p>
         <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
           <ButtonLink href="/dashboard">Back to dashboard</ButtonLink>
@@ -60,6 +60,7 @@ function FeedbackForm({ r, mentorName, onDone }: { r: MentoringRequest; mentorNa
   const { actions } = useStore();
   const [form, setForm] = useState<FeedbackInput>({ rating: 0, helpful: "", learned: "", improve: "", review: "", consentToShare: false });
   const [hover, setHover] = useState(0);
+  const first = mentorName.split(" ")[0];
   const [errors, setErrors] = useState<FieldErrors>({});
   const [error, setError] = useState<string | null>(null);
 
@@ -84,7 +85,7 @@ function FeedbackForm({ r, mentorName, onDone }: { r: MentoringRequest; mentorNa
   return (
     <Container className="max-w-2xl pb-10 pt-8">
       <Link href="/dashboard" className="inline-flex items-center gap-1.5 text-sm text-ink-muted hover:text-navy"><ArrowLeft className="h-4 w-4" /> Dashboard</Link>
-      <h1 className="mt-6 text-3xl font-semibold tracking-tight text-navy">How was your session?</h1>
+      <h1 className="mt-6 text-3xl font-semibold tracking-tight text-navy">Review your session</h1>
       <div className="mt-4 flex items-center gap-3 rounded-2xl border border-line bg-white p-4">
         <Avatar name={mentorName} seed={r.mentorId} size="sm" />
         <p className="text-sm text-ink-muted">
@@ -96,6 +97,8 @@ function FeedbackForm({ r, mentorName, onDone }: { r: MentoringRequest; mentorNa
         <form onSubmit={submit} noValidate className="space-y-7">
           {error && <Alert tone="error">{error}</Alert>}
 
+          <section className="space-y-6">
+            <h2 className="text-lg font-semibold text-navy">Review for {first}</h2>
           <fieldset>
             <legend className="text-sm font-medium text-navy">Overall satisfaction<span className="ml-0.5 text-teal-600" aria-hidden>*</span></legend>
             <div className="mt-3 flex items-center gap-3">
@@ -120,6 +123,24 @@ function FeedbackForm({ r, mentorName, onDone }: { r: MentoringRequest; mentorNa
             {errors.rating && <p className="mt-1.5 text-sm text-red-700">{errors.rating}</p>}
           </fieldset>
 
+          <Field label={`Your review for ${first}`} htmlFor="review" error={errors.review} required hint="What was great? Would you recommend them? Your mentor can read and reply to it.">
+            <Textarea id="review" rows={3} maxLength={1000} value={form.review} invalid={!!errors.review} onChange={(e) => set("review", e.target.value)} />
+          </Field>
+
+          <label className="flex items-start gap-3 rounded-xl bg-paper p-4 text-sm text-ink-muted">
+            <input type="checkbox" checked={form.consentToShare} onChange={(e) => set("consentToShare", e.target.checked)} className="mt-0.5 h-4 w-4 accent-teal" />
+            <span>
+              <span className="font-medium text-navy">Show my rating and review on {first}&apos;s public profile.</span> Optional. Only your first name and
+              last initial are shown. If unchecked, only {first} and OpenDoor administrators can see it.
+            </span>
+          </label>
+          </section>
+
+          <section className="space-y-6 border-t border-line pt-7">
+            <div>
+              <h2 className="text-lg font-semibold text-navy">Private feedback</h2>
+              <p className="text-sm text-ink-muted">Only OpenDoor administrators see this — it helps us improve the program.</p>
+            </div>
           <fieldset>
             <legend className="text-sm font-medium text-navy">Was the session helpful?<span className="ml-0.5 text-teal-600" aria-hidden>*</span></legend>
             <div className="mt-2 grid grid-cols-3 gap-2">
@@ -139,17 +160,7 @@ function FeedbackForm({ r, mentorName, onDone }: { r: MentoringRequest; mentorNa
           <Field label="What could be improved?" htmlFor="improve" hint="Optional">
             <Textarea id="improve" rows={2} maxLength={1000} value={form.improve} onChange={(e) => set("improve", e.target.value)} />
           </Field>
-          <Field label="Written review" htmlFor="review" error={errors.review} hint="Optional — a few words about your experience.">
-            <Textarea id="review" rows={3} maxLength={1000} value={form.review} invalid={!!errors.review} onChange={(e) => set("review", e.target.value)} />
-          </Field>
-
-          <label className="flex items-start gap-3 rounded-xl bg-paper p-4 text-sm text-ink-muted">
-            <input type="checkbox" checked={form.consentToShare} onChange={(e) => set("consentToShare", e.target.checked)} className="mt-0.5 h-4 w-4 accent-teal" />
-            <span>
-              <span className="font-medium text-navy">Okay to share my review publicly in the future.</span> Optional. Right now, feedback is only visible to
-              OpenDoor administrators — reviews are never shown publicly without your consent.
-            </span>
-          </label>
+          </section>
 
           <div className="flex justify-end border-t border-line pt-6">
             <Button type="submit" size="lg">Submit feedback</Button>

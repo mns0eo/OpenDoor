@@ -2,10 +2,11 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { CalendarCheck, Check, CheckCircle2, Clock, ExternalLink, Inbox, Info, X } from "lucide-react";
+import { CalendarCheck, CalendarDays, Check, CheckCircle2, Clock, ExternalLink, Inbox, ShieldCheck, X } from "lucide-react";
 import { useStore, useMyMentorProfile } from "@/lib/store";
 import type { Availability, MentoringRequest, User } from "@/lib/types";
 import { formatHours } from "@/lib/utils";
+import { hoursStatus, openSlots } from "@/lib/sessions";
 import { validateDuration } from "@/lib/validation";
 import { AvailabilityIndicator } from "../Availability";
 import { RequestItem } from "../RequestItem";
@@ -24,6 +25,9 @@ export function MentorDashboard({ user }: { user: User }) {
   const upcoming = mine.filter((r) => r.status === "accepted").sort((a, b) => a.preferredAt.localeCompare(b.preferredAt));
   const completed = mine.filter((r) => r.status === "completed").sort((a, b) => b.preferredAt.localeCompare(a.preferredAt));
   const totalMinutes = completed.reduce((s, r) => s + (r.durationMinutes ?? 0), 0);
+  const verifiedMinutes = completed.filter((r) => hoursStatus(db, r.id) === "approved").reduce((s, r) => s + (r.durationMinutes ?? 0), 0);
+  const unsubmitted = completed.filter((r) => ["not-submitted", "rejected"].includes(hoursStatus(db, r.id))).length;
+  const open = profile ? openSlots(db, profile.id).length : 0;
   const mentorName = profile?.name ?? user.name;
 
   const notify = (res: { ok: boolean; error?: string }, msg: string) => toast(res.ok ? msg : res.error!, res.ok ? "success" : "error");
@@ -34,13 +38,13 @@ export function MentorDashboard({ user }: { user: User }) {
   };
 
   return (
-    <div className="grid gap-10 lg:grid-cols-[1fr_300px]">
-      <div className="space-y-12">
+    <div className="grid grid-cols-1 gap-10 lg:grid-cols-[minmax(0,1fr)_300px]">
+      <div className="min-w-0 space-y-12">
         <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
           <StatCard label="Incoming" value={incoming.length} icon={<Inbox className="h-4 w-4" />} hint="Awaiting your reply" />
           <StatCard label="Upcoming" value={upcoming.length} icon={<CalendarCheck className="h-4 w-4" />} hint="Accepted sessions" />
           <StatCard label="Completed" value={completed.length} icon={<CheckCircle2 className="h-4 w-4" />} hint="Sessions mentored" />
-          <StatCard tone="navy" label="Mentoring hours" value={formatHours(totalMinutes)} icon={<Clock className="h-4 w-4" />} hint="Platform-recorded" />
+          <StatCard tone="navy" label="Mentoring hours" value={formatHours(totalMinutes)} icon={<Clock className="h-4 w-4" />} hint={`${formatHours(verifiedMinutes)} verified by school`} />
         </div>
 
         <DashSection title="Incoming requests" count={incoming.length} description="Accept or decline — mentees see your answer right away.">
@@ -102,13 +106,18 @@ export function MentorDashboard({ user }: { user: User }) {
             </div>
           </Card>
         )}
+<Card className="p-5">
+          <p className="flex items-center gap-2 font-medium text-navy"><CalendarDays className="h-4 w-4 text-teal" /> {open} open time{open === 1 ? "" : "s"}</p>
+          <p className="mt-1 text-xs text-ink-muted">Mentees can only book times you open on your calendar.</p>
+          <Link href="/dashboard/calendar" className={buttonClass("outline", "sm", "mt-3 w-full")}>Manage calendar</Link>
+        </Card>
         <Card className="p-5">
-          <p className="flex items-center gap-2 font-medium text-navy"><Clock className="h-4 w-4 text-teal" /> {formatHours(totalMinutes)} mentored</p>
-          <p className="mt-2 flex gap-2 text-xs leading-relaxed text-ink-muted">
-            <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-            Hours are platform-recorded from the durations you enter when completing sessions. They are self-reported and
-            have not been officially verified as volunteer hours.
+          <p className="flex items-center gap-2 font-medium text-navy"><ShieldCheck className="h-4 w-4 text-teal" /> {formatHours(verifiedMinutes)} verified</p>
+          <p className="mt-1 text-xs leading-relaxed text-ink-muted">
+            {formatHours(totalMinutes)} recorded in total. Hours count as volunteer hours only after the school approves them.
+            {unsubmitted > 0 && ` ${unsubmitted} session${unsubmitted > 1 ? "s" : ""} not yet sent.`}
           </p>
+          <Link href="/dashboard/hours" className={buttonClass("outline", "sm", "mt-3 w-full")}>Send hours to school</Link>
         </Card>
       </aside>
     </div>
@@ -203,7 +212,7 @@ function UpcomingSession({ r, mentorName }: { r: MentoringRequest; mentorName: s
               </div>
             </div>
             {error && <p className="text-sm text-red-700" role="alert">{error}</p>}
-            <p className="text-xs text-ink-faint">This is recorded as platform-recorded mentoring time (not officially verified).</p>
+            <p className="text-xs text-ink-faint">Recorded as mentoring time. You can send it to the school for volunteer-hour approval on the Volunteer hours page.</p>
             <div className="flex justify-end gap-2">
               <Button size="sm" variant="ghost" onClick={() => { setCompleting(false); setError(null); }}>Back</Button>
               <Button size="sm" variant="accent" type="submit">Confirm completed</Button>

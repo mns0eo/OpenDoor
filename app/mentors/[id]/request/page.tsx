@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useMemo, useState } from "react";
 import { ArrowLeft, CalendarCheck, CheckCircle2, MapPin, UserX, Video } from "lucide-react";
+import { SlotPicker } from "@/components/SlotPicker";
+import { openSlots } from "@/lib/sessions";
 import { RequireAuth } from "@/components/RequireAuth";
 import { Alert, Avatar, Button, ButtonLink, Card, Container, EmptyState, Field, Input, Select, Textarea } from "@/components/ui";
 import { CATEGORIES, CATEGORY_MAP } from "@/lib/categories";
@@ -11,11 +13,6 @@ import { useStore } from "@/lib/store";
 import type { MentoringRequest, MentorProfile, User } from "@/lib/types";
 import { cn, formatDateTime } from "@/lib/utils";
 import { validateRequest, type FieldErrors, type RequestInput } from "@/lib/validation";
-
-function todayLocal() {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
 
 export default function RequestPage() {
   const { id } = useParams<{ id: string }>();
@@ -50,25 +47,23 @@ function RequestGate({ mentorId, user }: { mentorId: string; user: User }) {
 }
 
 function RequestForm({ mentor, user }: { mentor: MentorProfile; user: User }) {
-  const { actions } = useStore();
+  const { actions, db } = useStore();
+  const slots = useMemo(() => openSlots(db!, mentor.id), [db, mentor.id]);
   const [form, setForm] = useState<RequestInput>({
     mentorId: mentor.id,
     category: mentor.categories[0] ?? "",
     helpWith: "",
     format: mentor.formats.length === 1 ? mentor.formats[0]! : "",
-    date: "",
-    time: "",
+    slot: "",
     notes: "",
   });
   const [errors, setErrors] = useState<FieldErrors>({});
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [done, setDone] = useState<MentoringRequest | null>(null);
-  const minDate = useMemo(todayLocal, []);
-
   const set = <K extends keyof RequestInput>(k: K, v: RequestInput[K]) => {
     setForm((f) => ({ ...f, [k]: v }));
-    if (errors[k] || (k === "time" && errors.date)) setErrors((e) => ({ ...e, [k]: "", ...(k === "time" ? { date: "" } : {}) }));
+    if (errors[k]) setErrors((e) => ({ ...e, [k]: "" }));
   };
 
   const submit = (e: React.FormEvent) => {
@@ -105,7 +100,7 @@ function RequestForm({ mentor, user }: { mentor: MentorProfile; user: User }) {
           </p>
           <dl className="mx-auto mt-8 max-w-sm space-y-2 rounded-2xl bg-paper p-5 text-left text-sm">
             <Row label="Category" value={CATEGORY_MAP[done.category].label} />
-            <Row label="Preferred time" value={formatDateTime(done.preferredAt)} />
+            <Row label="Requested time" value={formatDateTime(done.preferredAt)} />
             <Row label="Format" value={done.format === "online" ? "Online" : "In person"} />
           </dl>
           <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
@@ -127,8 +122,8 @@ function RequestForm({ mentor, user }: { mentor: MentorProfile; user: User }) {
       <h1 className="mt-6 text-3xl font-semibold tracking-tight text-navy">Request mentoring</h1>
       <p className="mt-2 text-ink-muted">Tell {mentor.name.split(" ")[0]} what you&apos;d like help with. Requests are free and you can cancel anytime.</p>
 
-      <div className="mt-8 grid gap-8 lg:grid-cols-[1fr_300px]">
-        <Card className="p-6 sm:p-8">
+      <div className="mt-8 grid gap-8 lg:grid-cols-[minmax(0,1fr)_300px]">
+        <Card className="min-w-0 p-6 sm:p-8">
           <form onSubmit={submit} noValidate className="space-y-6">
             {error && <Alert tone="error">{error}</Alert>}
 
@@ -187,15 +182,14 @@ function RequestForm({ mentor, user }: { mentor: MentorProfile; user: User }) {
               {errors.format && <p className="mt-1.5 text-sm text-red-700">{errors.format}</p>}
             </fieldset>
 
-            <div className="grid gap-6 sm:grid-cols-2">
-              <Field label="Preferred date" htmlFor="date" error={errors.date} required>
-                <Input id="date" type="date" min={minDate} value={form.date} invalid={!!errors.date} onChange={(e) => set("date", e.target.value)} />
-              </Field>
-              <Field label="Preferred time" htmlFor="time" error={errors.time} required>
-                <Input id="time" type="time" step={900} value={form.time} invalid={!!errors.time} onChange={(e) => set("time", e.target.value)} />
-              </Field>
-            </div>
-            <p className="-mt-3 text-xs text-ink-faint">Mentor&apos;s general availability: {mentor.availabilityNote || "Flexible"}</p>
+            <fieldset className="min-w-0">
+              <legend className="text-sm font-medium text-navy">
+                Choose a time<span className="ml-0.5 text-teal-600" aria-hidden>*</span>
+              </legend>
+              <p className="mb-2 text-xs text-ink-faint">These are the times {mentor.name.split(" ")[0]} opened on their calendar.</p>
+              <SlotPicker slots={slots} value={form.slot} onChange={(v) => set("slot", v)} invalid={!!errors.slot} />
+              {errors.slot && <p className="mt-1.5 text-sm text-red-700">{errors.slot}</p>}
+            </fieldset>
 
             <Field label="Additional notes" htmlFor="notes" error={errors.notes} hint="Optional — anything else your mentor should know.">
               <Textarea id="notes" rows={3} maxLength={500} value={form.notes} invalid={!!errors.notes} onChange={(e) => set("notes", e.target.value)} />
@@ -203,7 +197,7 @@ function RequestForm({ mentor, user }: { mentor: MentorProfile; user: User }) {
 
             <div className="flex flex-col-reverse gap-3 border-t border-line pt-6 sm:flex-row sm:justify-end">
               <ButtonLink href={`/mentors/${mentor.id}`} variant="ghost">Cancel</ButtonLink>
-              <Button type="submit" size="lg" loading={loading}>
+              <Button type="submit" size="lg" loading={loading} disabled={slots.length === 0}>
                 <CalendarCheck className="h-4 w-4" /> Send request
               </Button>
             </div>

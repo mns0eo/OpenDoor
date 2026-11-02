@@ -12,7 +12,7 @@ import { Button, Chip, EmptyState, Skeleton } from "./ui";
 
 function matches(m: MentorProfile, q: string) {
   if (!q) return true;
-  const hay = [m.name, m.headline, m.intro, m.bio, ...m.achievements, ...m.topics, ...m.skills, ...m.experience]
+  const hay = [m.name, m.headline, m.intro, m.bio, ...m.otherAreas, ...m.achievements, ...m.topics, ...m.skills, ...m.experience]
     .join(" ")
     .toLowerCase();
   return q

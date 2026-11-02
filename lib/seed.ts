@@ -6,14 +6,16 @@ import type {
   CategoryId,
   Database,
   Feedback,
+  HoursSubmission,
   MentorApplication,
   MentorProfile,
   MentoringRequest,
+  Message,
   User,
 } from "./types";
 import { demoHash } from "./utils";
 
-export const DB_VERSION = 1;
+export const DB_VERSION = 2;
 export const DEMO_PASSWORD = "demo1234";
 
 /** The three accounts advertised for live demos (see README + Switch demo user button). */
@@ -23,7 +25,25 @@ export const DEMO_ACCOUNTS = [
   { userId: "u_admin", label: "Admin", email: "admin@demo.opendoor", description: "Taylor Brooks · Program admin" },
 ] as const;
 
-type MentorSeed = Omit<MentorProfile, "id" | "userId" | "listed" | "isDemo" | "createdAt"> & { key: string; email: string };
+type MentorSeed = Omit<MentorProfile, "id" | "userId" | "listed" | "isDemo" | "createdAt" | "otherAreas" | "introVideoId" | "slots"> & {
+  key: string;
+  email: string;
+};
+
+/** Weekdays (0=Sun) and start hours each fictional mentor opens on their calendar. */
+const SLOT_PATTERNS: Record<string, { days: number[]; hours: number[] }> = {
+  alex: { days: [1, 2, 3, 4], hours: [15, 16, 17] },
+  sophia: { days: [2, 4], hours: [12, 15, 16] },
+  daniel: { days: [5], hours: [12, 15] },
+  emma: { days: [3, 6, 0], hours: [10, 17, 18] },
+  marcus: { days: [1, 2, 3, 4], hours: [7] },
+  priya: { days: [0], hours: [13, 14, 15, 16] },
+  hannah: { days: [2, 4], hours: [15, 16] },
+  ethan: { days: [1, 3, 5], hours: [18, 19] },
+  olivia: { days: [1, 3], hours: [15, 16] },
+  noah: { days: [], hours: [] },
+  isabella: { days: [4, 6], hours: [9, 10, 16] },
+};
 
 const MENTOR_SEEDS: MentorSeed[] = [
   {
@@ -275,6 +295,18 @@ export function buildSeed(now = new Date()): Database {
     }),
   ];
 
+  const slotsFor = (key: string) => {
+    const p = SLOT_PATTERNS[key] ?? { days: [], hours: [] };
+    const out: string[] = [];
+    for (let d = 1; d <= 21; d++) {
+      const day = new Date(now);
+      day.setDate(day.getDate() + d);
+      if (!p.days.includes(day.getDay())) continue;
+      for (const h of p.hours) out.push(days(d, h));
+    }
+    return out;
+  };
+
   const mentors: MentorProfile[] = MENTOR_SEEDS.map(({ key, email, ...m }) => {
     users.push(
       baseUser({
@@ -287,7 +319,17 @@ export function buildSeed(now = new Date()): Database {
         bio: m.bio,
       }),
     );
-    return { ...m, id: `m_${key}`, userId: `u_${key}`, listed: true, isDemo: true, createdAt: created };
+    return {
+      ...m,
+      id: `m_${key}`,
+      userId: `u_${key}`,
+      otherAreas: [],
+      introVideoId: null,
+      slots: slotsFor(key),
+      listed: true,
+      isDemo: true,
+      createdAt: created,
+    };
   });
 
   const req = (
@@ -355,43 +397,82 @@ export function buildSeed(now = new Date()): Database {
       id: "f_1", requestId: "r_6", mentorId: "m_alex", menteeId: "u_ava", rating: 5, helpful: "yes",
       learned: "How to use an error log to track the question types I miss.",
       improve: "Nothing — maybe share the practice resources ahead of time.",
-      review: "Alex was super clear and encouraging. I left with a real plan.", consentToShare: true, createdAt: days(-13, 9),
+      review: "Alex was super clear and encouraging. I left with a real plan.", consentToShare: true,
+      mentorReply: "Thanks Ava! Keep that error log going — you've got this.", mentorReplyAt: days(-12, 18), createdAt: days(-13, 9),
     },
     {
       id: "f_2", requestId: "r_7", mentorId: "m_emma", menteeId: "u_ava", rating: 4, helpful: "yes",
       learned: "Slow practice with a metronome and recording myself.",
       improve: "Would have liked a bit more time on sight-reading.",
-      review: "", consentToShare: false, createdAt: days(-9, 19),
+      review: "Emma's practice tips were really practical.", consentToShare: true,
+      mentorReply: "", mentorReplyAt: null, createdAt: days(-9, 19),
     },
     {
       id: "f_3", requestId: "r_11", mentorId: "m_hannah", menteeId: "u_sam", rating: 5, helpful: "yes",
       learned: "My essay should show one specific moment, not my whole résumé.",
-      improve: "", review: "Hannah gave honest, kind feedback.", consentToShare: false, createdAt: days(-4, 21),
+      improve: "", review: "Hannah gave honest, kind feedback.", consentToShare: false,
+      mentorReply: "", mentorReplyAt: null, createdAt: days(-4, 21),
     },
   ];
 
   const applications: MentorApplication[] = [
     {
-      id: "a_1", userId: "u_jordan", name: "Jordan Rivera", grade: "11", categories: ["academics", "competitions"],
+      id: "a_1", userId: "u_jordan", name: "Jordan Rivera", grade: "11", categories: ["academics", "competitions"], otherArea: "",
       expertise: "Chemistry & Science Olympiad",
-      achievements: "Science Olympiad regional medalist (Chemistry Lab); AP Chemistry score 5; Chem Club co-president",
+      achievements: [
+        { text: "Science Olympiad regional medalist (Chemistry Lab)", grade: "10" },
+        { text: "AP Chemistry — score 5", grade: "10" },
+        { text: "Chem Club co-president", grade: "11" },
+      ],
       experience: "Tutored three freshmen in Honors Chemistry last spring.",
       motivation: "Chemistry clicked for me late, and I want to help others reach that moment sooner.",
       topics: "Honors/AP Chemistry, Science Olympiad lab events, study habits",
-      availability: "Tuesday and Thursday after school", formats: ["in-person", "online"],
+      availability: "Tuesday and Thursday after school", formats: ["in-person", "online"], introVideoId: null,
       status: "pending", reviewNote: "", createdAt: days(-2, 14), reviewedAt: null,
     },
     {
-      id: "a_2", userId: "u_mia", name: "Mia Thompson", grade: "10", categories: ["music", "personal"],
+      id: "a_2", userId: "u_mia", name: "Mia Thompson", grade: "10", categories: ["personal"], otherArea: "Visual Arts",
       expertise: "Visual Arts & Portfolio Building",
-      achievements: "Scholastic Art Award — Silver Key; designed the 2025 school play poster",
+      achievements: [
+        { text: "Scholastic Art Award — Silver Key", grade: "9" },
+        { text: "Designed the 2025 school play poster", grade: "10" },
+      ],
       experience: "Volunteer art assistant at a summer camp.",
       motivation: "I want more students to feel confident sharing their creative work.",
       topics: "Starting an art portfolio, digital illustration basics, creative confidence",
-      availability: "Weekend afternoons, online", formats: ["online"],
+      availability: "Weekend afternoons, online", formats: ["online"], introVideoId: null,
       status: "pending", reviewNote: "", createdAt: days(-1, 11), reviewedAt: null,
     },
   ];
 
-  return { version: DB_VERSION, users, mentors, requests, feedback, applications, sessionUserId: null };
+  const msg = (id: string, requestId: string, senderId: string, body: string, at: string): Message => ({ id, requestId, senderId, body, createdAt: at });
+  const messages: Message[] = [
+    msg("msg_1", "r_2", "u_riley", "Hi Sophia! Thanks for accepting. Should I bring anything?", days(-2, 18)),
+    msg("msg_2", "r_2", "u_sophia", "Hey Riley! Bring a rough list of who'd use the textbook exchange — even 5 names helps.", days(-2, 19)),
+    msg("msg_3", "r_2", "u_riley", "Got it, see you at the library!", days(-2, 19, 30)),
+    msg("msg_4", "r_5", "u_sam", "Hi Alex, the midterm covers chapters 4–6.", days(-1, 17)),
+    msg("msg_5", "r_5", "u_alex", "Perfect — bring the practice test if you have it and we'll go through it.", days(-1, 18)),
+    msg("msg_6", "r_3", "u_riley", "Thanks again for today, the timing tips helped a lot!", days(-7, 18)),
+    msg("msg_7", "r_3", "u_alex", "Anytime! Try the 13-minutes-per-passage pacing this week.", days(-7, 19)),
+  ];
+
+  const hoursSubmissions: HoursSubmission[] = [
+    {
+      id: "h_1", mentorUserId: "u_alex", requestIds: ["r_6"], totalMinutes: 60, note: "SAT math planning session with a sophomore.",
+      status: "approved", reviewerNote: "Verified — thank you for mentoring!", createdAt: days(-12, 9), reviewedAt: days(-11, 10),
+    },
+    {
+      id: "h_2", mentorUserId: "u_hannah", requestIds: ["r_11"], totalMinutes: 50, note: "College essay brainstorming.",
+      status: "pending", reviewerNote: "", createdAt: days(-3, 20), reviewedAt: null,
+    },
+  ];
+
+  // Make sure booked request times also appear as (taken) calendar slots.
+  for (const r of requests) {
+    const m = mentors.find((x) => x.id === r.mentorId);
+    if (m && !m.slots.includes(r.preferredAt)) m.slots.push(r.preferredAt);
+  }
+  mentors.forEach((m) => m.slots.sort());
+
+  return { version: DB_VERSION, users, mentors, requests, feedback, applications, messages, hoursSubmissions, sessionUserId: null };
 }

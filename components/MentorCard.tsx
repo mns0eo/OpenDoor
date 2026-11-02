@@ -40,6 +40,9 @@ export function MentorCard({ mentor }: { mentor: MentorProfile }) {
             {CATEGORY_MAP[c].short}
           </span>
         ))}
+        {mentor.otherAreas.map((a) => (
+          <span key={a} className="inline-flex items-center rounded-full bg-sky px-2.5 py-1 text-xs text-navy">{a}</span>
+        ))}
       </div>
 
       <div className="mt-5 flex items-center justify-between gap-3 border-t border-line pt-4">

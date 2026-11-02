@@ -56,11 +56,17 @@ export interface MentorProfile {
   formats: MeetingFormat[];
   availability: Availability;
   availabilityNote: string;
+  /** Custom mentoring areas typed under "Other". */
+  otherAreas: string[];
+  /** Intro video id (demo: stored in this browser's IndexedDB; production: Supabase Storage). */
+  introVideoId: string | null;
+  /** Bookable 1-hour slots the mentor opened on their calendar (ISO start times). */
+  slots: string[];
   /** Only listed (approved) profiles appear in the public directory. */
   listed: boolean;
   isDemo: boolean;
   createdAt: string;
-  // Future: introVideoUrl, resumeUrl, hourlyRate (paid sessions), verified badge.
+  // Future: resumeUrl, hourlyRate (paid sessions).
 }
 
 export type RequestStatus = "pending" | "accepted" | "declined" | "completed" | "canceled";
@@ -98,9 +104,41 @@ export interface Feedback {
   learned: string;
   improve: string;
   review: string;
-  /** Mentee consents to the review being shown publicly in the future. Not displayed publicly in the MVP. */
+  /** Mentee consents to the written review + rating being shown on the mentor's public profile. */
   consentToShare: boolean;
+  /** Mentor's public reply to the review. */
+  mentorReply: string;
+  mentorReplyAt: string | null;
   createdAt: string;
+}
+
+export interface Achievement {
+  text: string;
+  /** Grade in which it was achieved: "9"–"12" or "Before 9". */
+  grade: string;
+}
+
+export interface Message {
+  id: string;
+  requestId: string;
+  senderId: string;
+  body: string;
+  createdAt: string;
+}
+
+export type HoursStatus = "pending" | "approved" | "rejected";
+
+/** A batch of completed sessions a mentor sends to the school for volunteer-hour verification. */
+export interface HoursSubmission {
+  id: string;
+  mentorUserId: string;
+  requestIds: string[];
+  totalMinutes: number;
+  note: string;
+  status: HoursStatus;
+  reviewerNote: string;
+  createdAt: string;
+  reviewedAt: string | null;
 }
 
 export type ApplicationStatus = "pending" | "approved" | "rejected";
@@ -111,13 +149,16 @@ export interface MentorApplication {
   name: string;
   grade: string;
   categories: CategoryId[];
+  /** Free-text area typed under "Other". */
+  otherArea: string;
   expertise: string;
-  achievements: string;
+  achievements: Achievement[];
   experience: string;
   motivation: string;
   topics: string;
   availability: string;
   formats: MeetingFormat[];
+  introVideoId: string | null;
   status: ApplicationStatus;
   reviewNote: string;
   createdAt: string;
@@ -131,6 +172,8 @@ export interface Database {
   requests: MentoringRequest[];
   feedback: Feedback[];
   applications: MentorApplication[];
+  messages: Message[];
+  hoursSubmissions: HoursSubmission[];
   /** Currently logged-in user (demo-mode session). */
   sessionUserId: string | null;
 }

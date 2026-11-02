@@ -4,6 +4,7 @@ import { RequireAuth } from "@/components/RequireAuth";
 import { RoleSwitch } from "@/components/RoleSwitch";
 import { MenteeDashboard } from "@/components/dashboard/MenteeDashboard";
 import { MentorDashboard } from "@/components/dashboard/MentorDashboard";
+import { MentorNav } from "@/components/dashboard/MentorNav";
 import { Alert, ButtonLink, Container, PageHeader } from "@/components/ui";
 
 export default function DashboardPage() {
@@ -33,6 +34,7 @@ export default function DashboardPage() {
                 Use the admin console to review mentor applications, requests, and feedback.
               </Alert>
             )}
+            {asMentor && <MentorNav />}
             {asMentor ? <MentorDashboard user={user} /> : <MenteeDashboard user={user} />}
           </Container>
         );

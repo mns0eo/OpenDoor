@@ -37,13 +37,13 @@ export function MenteeDashboard({ user }: { user: User }) {
   const cancelBtn = (id: string) => <ConfirmButton onConfirm={() => cancel(id)} confirmLabel="Confirm cancel">Cancel</ConfirmButton>;
 
   return (
-    <div className="grid gap-10 lg:grid-cols-[1fr_300px]">
-      <div className="space-y-12">
+    <div className="grid grid-cols-1 gap-10 lg:grid-cols-[minmax(0,1fr)_300px]">
+      <div className="min-w-0 space-y-12">
         <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
           <StatCard label="Pending" value={count("pending")} icon={<Hourglass className="h-4 w-4" />} hint="Awaiting mentor reply" />
           <StatCard label="Upcoming" value={upcoming.filter((r) => new Date(r.preferredAt).getTime() >= now).length} icon={<CalendarCheck className="h-4 w-4" />} hint="Accepted sessions" />
           <StatCard label="Completed" value={past.length} icon={<CheckCircle2 className="h-4 w-4" />} hint="Sessions finished" />
-          <StatCard label="Feedback to give" value={needsFeedback.length} icon={<Star className="h-4 w-4" />} hint="Help mentors improve" />
+          <StatCard label="Reviews to write" value={needsFeedback.length} icon={<Star className="h-4 w-4" />} hint="Help mentors improve" />
         </div>
 
         {needsFeedback.length > 0 && (
@@ -55,12 +55,12 @@ export function MenteeDashboard({ user }: { user: User }) {
                   <p className="font-medium text-navy">How did your session{needsFeedback.length > 1 ? "s" : ""} go?</p>
                   <p className="text-sm text-ink-muted">
                     Share quick feedback on your session with {mentorName(needsFeedback[0]!.mentorId)}
-                    {needsFeedback.length > 1 ? ` and ${needsFeedback.length - 1} more` : ""}. Only administrators see it.
+                    {needsFeedback.length > 1 ? ` and ${needsFeedback.length - 1} more` : ""}. Your mentor can read and reply.
                   </p>
                 </div>
               </div>
               <ButtonLink href={`/requests/${needsFeedback[0]!.id}/feedback`} variant="accent" size="sm" className="shrink-0">
-                Leave feedback
+                Leave review
               </ButtonLink>
             </div>
           </Card>
@@ -114,7 +114,7 @@ export function MenteeDashboard({ user }: { user: User }) {
                   perspective="mentee"
                   actions={
                     r.status === "pending" || r.status === "accepted" ? cancelBtn(r.id) :
-                    r.status === "completed" && !hasFeedback(r.id) ? <ButtonLink href={`/requests/${r.id}/feedback`} variant="accent" size="sm">Leave feedback</ButtonLink> :
+                    r.status === "completed" && !hasFeedback(r.id) ? <ButtonLink href={`/requests/${r.id}/feedback`} variant="accent" size="sm">Leave review</ButtonLink> :
                     undefined
                   }
                 />
@@ -136,9 +136,9 @@ export function MenteeDashboard({ user }: { user: User }) {
                   perspective="mentee"
                   actions={
                     hasFeedback(r.id) ? (
-                      <span className="inline-flex items-center gap-1.5 text-sm text-emerald-700"><CheckCircle2 className="h-4 w-4" /> Feedback sent</span>
+                      <span className="inline-flex items-center gap-1.5 text-sm text-emerald-700"><CheckCircle2 className="h-4 w-4" /> Review sent</span>
                     ) : (
-                      <ButtonLink href={`/requests/${r.id}/feedback`} variant="accent" size="sm">Leave feedback</ButtonLink>
+                      <ButtonLink href={`/requests/${r.id}/feedback`} variant="accent" size="sm">Leave review</ButtonLink>
                     )
                   }
                 />

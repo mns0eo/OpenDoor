@@ -86,12 +86,13 @@ fictional data.
 ### Suggested 3-minute presentation script
 
 1. **Home page** → click **Find a Mentor**.
-2. Filter by **Music** or search "SAT" → open **Alex Kim's** profile → **Request Mentoring**.
-   (Try a past date to show validation.) Submit → confirmation.
-3. **Switch demo user → Mentor** (Alex). Accept the new request, then **Mark completed** and enter 45 minutes.
-   Point out the **platform-recorded hours**.
-4. **Switch demo user → Mentee** (Riley). The session is now completed → **Leave feedback**.
-5. **Switch demo user → Admin**. Show stats, the feedback you just left, and approve a pending mentor application.
+2. Filter by **Music** or search "SAT" → open **Alex Kim's** profile (show reviews + intro video area) → **Request Mentoring**.
+   Pick one of Alex's open times from the calendar and submit.
+3. **Switch demo user → Mentor** (Alex). Show the **Calendar** tab. Accept the new request, open **Chat**, then
+   **Mark completed** (45 minutes). On **Volunteer hours**, send it to the school.
+4. **Switch demo user → Mentee** (Riley). The session is completed → **Leave review** (tick "show on profile").
+5. **Switch demo user → Mentor** → **Reviews** → reply. The reply shows on Alex's public profile.
+6. **Switch demo user → Admin**. Approve the volunteer hours and a pending mentor application.
 
 > Tip: Open two browser windows side by side (one as mentee, one as mentor). They stay in sync automatically.
 
@@ -105,15 +106,18 @@ fictional data.
 - ✅ Sign up / log in / log out, initial role choice, editable profile (demo mode)
 - ✅ Mentor directory: keyword search, 8 category filters, "accepting requests" filter, availability indicators
 - ✅ Mentor profile pages: bio, achievements, experience, skills, topics, formats, availability, media placeholders
-- ✅ Mentoring requests: validated form (past dates rejected), confirmation screen
+- ✅ **Mentor calendar:** mentors click/drag to open 1-hour times (with "repeat for next 3 weeks")
+- ✅ Mentoring requests: mentees **pick one of the mentor's open times** (past times can't be booked), confirmation screen
+- ✅ **Session chat:** opens when the mentor accepts, closes 5 days after the session ends
 - ✅ Statuses: Pending → Accepted / Declined → Completed, or Canceled
 - ✅ Mentee dashboard: requests by status, upcoming sessions, past sessions, feedback prompts, profile settings
-- ✅ Mentor dashboard: accept/decline (with optional note), mark completed + duration, total hours, availability toggle, profile editor
-- ✅ Hours are labeled **platform-recorded / self-reported, not officially verified**
-- ✅ Feedback: 1–5 stars, helpful?, what you learned, improvements, optional review, consent checkbox. Visible to admins only
-- ✅ Become a Mentor: application form → **Pending Review** → admin approves/rejects
+- ✅ Mentor dashboard: accept/decline (with optional note), mark completed + duration, total hours, availability toggle, profile editor, plus Calendar / Volunteer hours / Reviews tabs
+- ✅ **Volunteer hours:** mentors send completed sessions to the school; a school admin approves or returns them. Only approved hours show as "Verified by school". Printable activity report
+- ✅ **Reviews:** after a session, mentees rate + review the mentor; mentors can reply. Reviews appear on the public profile only if the mentee opts in. Private feedback (what you learned / could improve) is admin-only
+- ✅ Become a Mentor: application with "Other" mentoring area, achievements **with the grade they were earned in**, Online / In person / **Both**, and an optional **intro video upload** → **Pending Review** → admin approves/rejects
+- ✅ Intro video plays on the mentor's public profile (mentors can replace it in Profile settings)
 - ✅ Only approved mentors appear in the directory, and only approved mentors can switch to the mentor role
-- ✅ Admin console (admin-only): overview stats, applications, users, requests, feedback, show/hide mentors
+- ✅ Admin console (admin-only): overview stats, applications, **volunteer-hour approvals**, users, requests, feedback, show/hide mentors
 - ✅ "Switch demo user" button, reset demo data, 11 fictional mentors clearly labeled
 - ✅ Loading, empty, success, and error states; responsive on mobile; keyboard and screen-reader friendly
 
@@ -125,6 +129,8 @@ fictional data.
 | Shared database (everyone sees the same data) | Supabase Postgres — run `supabase/schema.sql`, then re-implement `lib/store.tsx` actions with Supabase calls |
 | Server-enforced permissions | The Row Level Security policies in `supabase/schema.sql` (demo checks run in the browser only) |
 | Hosting | Import this repository into Vercel (no extra settings needed) |
+| Intro videos for everyone | Supabase Storage bucket (demo videos are saved only in the browser that uploaded them) |
+| Real-time chat across devices | Supabase Realtime on the `messages` table (demo chat syncs between tabs of one browser) |
 | Email notifications | An email provider (e.g. Resend) |
 | Future roadmap | Payments, verified volunteer hours/certificates, video intros, résumés, messaging, video calls, AI matching |
 
@@ -184,5 +190,6 @@ teal `#4A9D9A`, charcoal `#242424`. Font: Geist (bundled, works offline).
 - All profiles, names, and achievements are **fictional** and labeled as demo data. No real student information is used.
 - In demo mode, data never leaves your browser.
 - Passwords in demo mode are only lightly scrambled — **don't use a real password**. Production uses Supabase Auth.
-- Mentoring hours are **platform-recorded** from mentor-entered durations. They are **not** officially verified volunteer hours.
-- Reviews are shown to administrators only and never published without the mentee's consent.
+- Mentoring hours are recorded from mentor-entered durations. They count as volunteer hours **only after a school administrator approves them**.
+- Reviews appear on a mentor's public profile only if the mentee opts in (first name + last initial only). Private feedback is admin-only.
+- Session chats may be read by school administrators for safety, and close 5 days after the session.

@@ -40,9 +40,12 @@ create table mentor_profiles (
   formats           text[] not null,
   availability      availability not null default 'available',
   availability_note text not null default '',
+  other_areas       text[] not null default '{}',
+  intro_video_path  text,                 -- Supabase Storage path in bucket "intro-videos"
+  slots             timestamptz[] not null default '{}',  -- open 1-hour booking slots
   listed            boolean not null default false,
   created_at        timestamptz not null default now()
-  -- future: intro_video_url, resume_url, hourly_rate
+  -- future: resume_url, hourly_rate
 );
 
 create table mentoring_requests (
@@ -83,7 +86,9 @@ create table feedback (
   learned          text not null,
   improve          text not null default '',
   review           text not null default '',
-  consent_to_share boolean not null default false,
+  consent_to_share boolean not null default false,   -- show rating + review on the mentor's public profile
+  mentor_reply     text not null default '' check (char_length(mentor_reply) <= 600),
+  mentor_reply_at  timestamptz,
   created_at       timestamptz not null default now()
 );
 
@@ -93,17 +98,43 @@ create table mentor_applications (
   name         text not null,
   grade        text not null,
   categories   text[] not null,
+  other_area   text not null default '',
   expertise    text not null,
-  achievements text not null,
+  achievements jsonb not null,            -- [{ "text": "...", "grade": "10" }]
   experience   text not null,
   motivation   text not null,
   topics       text not null,
   availability text not null,
   formats      text[] not null,
+  intro_video_path text,
   status       application_status not null default 'pending',
   review_note  text not null default '',
   created_at   timestamptz not null default now(),
   reviewed_at  timestamptz
+);
+
+-- Session chat: open from acceptance until 5 days after the session ends (enforced in the insert policy).
+create table messages (
+  id          uuid primary key default gen_random_uuid(),
+  request_id  uuid not null references mentoring_requests on delete cascade,
+  sender_id   uuid not null references profiles on delete cascade,
+  body        text not null check (char_length(body) between 1 and 1000),
+  created_at  timestamptz not null default now()
+);
+
+create type hours_status as enum ('pending', 'approved', 'rejected');
+
+-- Volunteer-hour submissions a mentor sends to the school for approval.
+create table hours_submissions (
+  id              uuid primary key default gen_random_uuid(),
+  mentor_user_id  uuid not null references profiles on delete cascade,
+  request_ids     uuid[] not null,
+  total_minutes   int not null check (total_minutes > 0),
+  note            text not null default '',
+  status          hours_status not null default 'pending',
+  reviewer_note   text not null default '',
+  created_at      timestamptz not null default now(),
+  reviewed_at     timestamptz
 );
 
 -- ── Row Level Security ──────────────────────────────────────────────────────
@@ -116,6 +147,8 @@ alter table mentor_profiles     enable row level security;
 alter table mentoring_requests  enable row level security;
 alter table feedback            enable row level security;
 alter table mentor_applications enable row level security;
+alter table messages            enable row level security;
+alter table hours_submissions   enable row level security;
 
 -- profiles: you see/edit yourself; admins see everyone. (is_admin / mentor_status
 -- changes should go through admin-only RPCs — add a trigger blocking self-escalation.)
@@ -140,9 +173,29 @@ create policy "participants update" on mentoring_requests for update
 create policy "mentee writes" on feedback for insert with check (
   mentee_id = auth.uid() and exists (
     select 1 from mentoring_requests r where r.id = request_id and r.mentee_id = auth.uid() and r.status = 'completed'));
-create policy "admin reads" on feedback for select using (is_admin() or mentee_id = auth.uid());
+create policy "read feedback" on feedback for select using (
+  is_admin() or mentee_id = auth.uid() or consent_to_share
+  or exists (select 1 from mentor_profiles m where m.id = mentor_id and m.user_id = auth.uid()));
+-- NOTE: expose public reviews through a view that omits the private "learned"/"improve" columns.
+create policy "mentor replies" on feedback for update
+  using (exists (select 1 from mentor_profiles m where m.id = mentor_id and m.user_id = auth.uid()));
 
 -- applications: applicant creates + reads own; admins review.
 create policy "apply" on mentor_applications for insert with check (user_id = auth.uid() and status = 'pending');
 create policy "read own" on mentor_applications for select using (user_id = auth.uid() or is_admin());
 create policy "admin reviews" on mentor_applications for update using (is_admin());
+
+-- messages: participants read/write while the chat window is open; admins may read for safety.
+create policy "participants read messages" on messages for select using (
+  is_admin() or exists (select 1 from mentoring_requests r where r.id = request_id
+    and (r.mentee_id = auth.uid() or r.mentor_user_id = auth.uid())));
+create policy "participants send while open" on messages for insert with check (
+  sender_id = auth.uid() and exists (select 1 from mentoring_requests r where r.id = request_id
+    and (r.mentee_id = auth.uid() or r.mentor_user_id = auth.uid())
+    and r.status in ('accepted', 'completed')
+    and now() <= r.preferred_at + make_interval(mins => coalesce(r.duration_minutes, 60)) + interval '5 days'));
+
+-- hours: mentors submit + read their own; school admins review.
+create policy "mentor submits hours" on hours_submissions for insert with check (mentor_user_id = auth.uid() and status = 'pending');
+create policy "read hours" on hours_submissions for select using (mentor_user_id = auth.uid() or is_admin());
+create policy "admin reviews hours" on hours_submissions for update using (is_admin());

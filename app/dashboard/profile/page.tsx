@@ -5,13 +5,16 @@ import { useState } from "react";
 import { ArrowLeft, ExternalLink } from "lucide-react";
 import { CategoryIcon } from "@/components/CategoryIcon";
 import { MentorStatusCard } from "@/components/dashboard/shared";
+import { MentorNav } from "@/components/dashboard/MentorNav";
+import { FormatPicker } from "@/components/FormatPicker";
+import { IntroVideoUpload } from "@/components/IntroVideo";
 import { RequireAuth } from "@/components/RequireAuth";
 import { RoleSwitch } from "@/components/RoleSwitch";
 import { useToast } from "@/components/Toast";
 import { Alert, Avatar, Button, Card, Chip, Container, Field, Input, PageHeader, Select, Textarea } from "@/components/ui";
 import { CATEGORIES, GRADES } from "@/lib/categories";
 import { useMyMentorProfile, useStore } from "@/lib/store";
-import type { Availability, CategoryId, MeetingFormat, MentorProfile, User } from "@/lib/types";
+import type { Availability, CategoryId, MentorProfile, User } from "@/lib/types";
 import { lines } from "@/lib/utils";
 
 export default function ProfilePage() {
@@ -23,6 +26,7 @@ export default function ProfilePage() {
             <ArrowLeft className="h-4 w-4" /> Dashboard
           </Link>
           <PageHeader eyebrow="Settings" title="Profile settings" description="Keep your information up to date so mentors and mentees know who you are." />
+          {user.mentorStatus === "approved" && user.activeRole === "mentor" && <MentorNav />}
           <div className="space-y-8">
             <AccountForm user={user} />
             {user.mentorStatus === "approved" ? (
@@ -119,6 +123,8 @@ function MentorProfileForm() {
       skills: lines(form.skills),
       topics: lines(form.topics),
       categories: form.categories,
+      otherAreas: lines(form.otherAreas.replace(/,\s*/g, "\n")),
+      introVideoId: form.introVideoId,
       formats: form.formats,
       availability: form.availability,
       availabilityNote: form.availabilityNote.trim(),
@@ -174,17 +180,14 @@ function MentorProfileForm() {
             ))}
           </div>
         </fieldset>
+        <Field label="Other areas" htmlFor="mother" hint="Comma-separated, e.g. Visual Arts, Model UN">
+          <Input id="mother" value={form.otherAreas} onChange={(e) => set("otherAreas", e.target.value)} />
+        </Field>
+        <fieldset>
+          <legend className="text-sm font-medium text-navy">Meeting formats</legend>
+          <div className="mt-2"><FormatPicker value={form.formats} onChange={(v) => set("formats", v)} name="mformats" /></div>
+        </fieldset>
         <div className="grid gap-5 sm:grid-cols-2">
-          <fieldset>
-            <legend className="text-sm font-medium text-navy">Formats</legend>
-            <div className="mt-2 flex gap-2">
-              {(["online", "in-person"] as const).map((f) => (
-                <Chip key={f} selected={form.formats.includes(f)} onClick={() => set("formats", toggle<MeetingFormat>(form.formats, f))}>
-                  {f === "online" ? "Online" : "In person"}
-                </Chip>
-              ))}
-            </div>
-          </fieldset>
           <Field label="Availability status" htmlFor="mavail">
             <Select id="mavail" value={form.availability} onChange={(e) => set("availability", e.target.value as Availability)}>
               <option value="available">Available</option>
@@ -192,10 +195,15 @@ function MentorProfileForm() {
               <option value="unavailable">Not taking requests (paused)</option>
             </Select>
           </Field>
+          <Field label="General availability" htmlFor="mnote" hint="Exact times are set on your Calendar.">
+            <Input id="mnote" value={form.availabilityNote} onChange={(e) => set("availabilityNote", e.target.value)} />
+          </Field>
         </div>
-        <Field label="General availability" htmlFor="mnote" hint="e.g. Weekday afternoons after 3:30 PM">
-          <Input id="mnote" value={form.availabilityNote} onChange={(e) => set("availabilityNote", e.target.value)} />
-        </Field>
+        <fieldset>
+          <legend className="text-sm font-medium text-navy">Introduction video</legend>
+          <p className="mb-2 text-xs text-ink-faint">Shown on your public profile. Save the form after uploading.</p>
+          <IntroVideoUpload value={form.introVideoId} onChange={(id) => set("introVideoId", id)} name={profile.name} />
+        </fieldset>
         <div className="flex justify-end">
           <Button type="submit">Save mentor profile</Button>
         </div>
@@ -215,6 +223,8 @@ function toForm(p: MentorProfile | null) {
     skills: p.skills.join("\n"),
     topics: p.topics.join("\n"),
     categories: p.categories,
+    otherAreas: p.otherAreas.join(", "),
+    introVideoId: p.introVideoId,
     formats: p.formats,
     availability: p.availability,
     availabilityNote: p.availabilityNote,

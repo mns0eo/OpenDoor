@@ -15,19 +15,23 @@ import type {
   ActiveRole,
   Database,
   Feedback,
+  HoursSubmission,
   MentorApplication,
   MentorProfile,
   MentoringRequest,
+  Message,
   Result,
   User,
 } from "./types";
+import { BOOKING_WINDOW_DAYS, chatState, hoursStatus, takenSlots } from "./sessions";
 import { demoHash, toList, uid } from "./utils";
 import {
-  combineDateTime,
   firstError,
   validateApplication,
   validateDuration,
   validateFeedback,
+  validateMessage,
+  validateReply,
   validateRequest,
   validateSignup,
   type ApplicationInput,
@@ -179,16 +183,40 @@ function useStoreImpl() {
       },
 
       updateMentorProfile(
-        patch: Pick<MentorProfile, "headline" | "intro" | "bio" | "achievements" | "experience" | "skills" | "topics" | "categories" | "formats" | "availability" | "availabilityNote">,
+        patch: Pick<
+          MentorProfile,
+          "headline" | "intro" | "bio" | "achievements" | "experience" | "skills" | "topics" | "categories" | "otherAreas" | "formats" | "availability" | "availabilityNote" | "introVideoId"
+        >,
       ): Result<null> {
         const d = current();
         const u = me();
         if (!u || u.mentorStatus !== "approved") return fail("Only approved mentors can edit a mentor profile.");
         if (patch.headline.trim().length < 3) return fail("Add your main area of expertise.");
         if (patch.intro.trim().length < 10) return fail("Add a short introduction (10+ characters).");
-        if (patch.categories.length === 0) return fail("Pick at least one category.");
+        if (patch.categories.length === 0 && patch.otherAreas.length === 0) return fail("Pick at least one category.");
         if (patch.formats.length === 0) return fail("Pick at least one meeting format.");
         commit({ ...d, mentors: d.mentors.map((m) => (m.userId === u.id ? { ...m, ...patch } : m)) });
+        return ok(null);
+      },
+
+      /** Mentor opens/closes 1-hour slots on their calendar. Booked slots can't be removed here. */
+      setSlots(slots: string[]): Result<null> {
+        const d = current();
+        const u = me();
+        if (!u || u.mentorStatus !== "approved") return fail("Only approved mentors can manage a calendar.");
+        const mentor = d.mentors.find((m) => m.userId === u.id);
+        if (!mentor) return fail("Mentor profile not found.");
+        const nowMs = Date.now();
+        const limit = nowMs + (BOOKING_WINDOW_DAYS + 7) * 86_400_000;
+        const taken = takenSlots(d, mentor.id);
+        const clean = Array.from(new Set(slots)).filter((s) => {
+          const t = new Date(s).getTime();
+          return !Number.isNaN(t) && t > nowMs && t < limit;
+        });
+        // keep booked + past slots untouched so history stays consistent
+        const keep = mentor.slots.filter((s) => taken.has(s) || new Date(s).getTime() <= nowMs);
+        const next = Array.from(new Set([...keep, ...clean])).sort();
+        commit({ ...d, mentors: d.mentors.map((m) => (m.id === mentor.id ? { ...m, slots: next } : m)) });
         return ok(null);
       },
 
@@ -203,7 +231,8 @@ function useStoreImpl() {
         if (mentor.availability === "unavailable") return fail("This mentor isn't accepting requests right now.");
         const err = firstError(validateRequest(input));
         if (err) return fail(err);
-        const when = combineDateTime(input.date, input.time)!;
+        if (!mentor.slots.includes(input.slot)) return fail("Please pick one of the mentor's available times.");
+        if (takenSlots(d, mentor.id).has(input.slot)) return fail("Sorry — that time was just booked. Please pick another.");
         const r: MentoringRequest = {
           id: uid("r"),
           mentorId: mentor.id,
@@ -213,7 +242,7 @@ function useStoreImpl() {
           category: input.category as MentoringRequest["category"],
           helpWith: input.helpWith.trim(),
           format: input.format as MentoringRequest["format"],
-          preferredAt: when.toISOString(),
+          preferredAt: input.slot,
           notes: input.notes.trim(),
           status: "pending",
           mentorNote: "",
@@ -295,10 +324,88 @@ function useStoreImpl() {
           improve: input.improve.trim(),
           review: input.review.trim(),
           consentToShare: input.consentToShare,
+          mentorReply: "",
+          mentorReplyAt: null,
           createdAt: now(),
         };
         commit({ ...d, feedback: [f, ...d.feedback] });
         return ok(f);
+      },
+
+      /** Mentor replies to (or edits their reply to) a review of one of their sessions. */
+      replyToReview(feedbackId: string, reply: string): Result<null> {
+        const d = current();
+        const u = me();
+        const f = d.feedback.find((x) => x.id === feedbackId);
+        const mentor = f && d.mentors.find((m) => m.id === f.mentorId);
+        if (!u || !f || !mentor || mentor.userId !== u.id) return fail("You can only reply to reviews of your own sessions.");
+        const err = validateReply(reply);
+        if (err) return fail(err);
+        commit({
+          ...d,
+          feedback: d.feedback.map((x) => (x.id === feedbackId ? { ...x, mentorReply: reply.trim(), mentorReplyAt: now() } : x)),
+        });
+        return ok(null);
+      },
+
+      // ── Session chat ───────────────────────────────────────────────────────
+      sendMessage(requestId: string, body: string): Result<Message> {
+        const d = current();
+        const u = me();
+        const r = d.requests.find((x) => x.id === requestId);
+        if (!u || !r || (r.menteeId !== u.id && r.mentorUserId !== u.id)) return fail("Only the mentor and mentee of this session can chat.");
+        const state = chatState(r);
+        if (state.kind !== "open") return fail(state.reason);
+        const err = validateMessage(body);
+        if (err) return fail(err);
+        const m: Message = { id: uid("msg"), requestId, senderId: u.id, body: body.trim(), createdAt: now() };
+        commit({ ...d, messages: [...d.messages, m] });
+        return ok(m);
+      },
+
+      // ── Volunteer hours ────────────────────────────────────────────────────
+      /** Mentor sends completed sessions to the school for volunteer-hour verification. */
+      submitHours(requestIds: string[], note: string): Result<HoursSubmission> {
+        const d = current();
+        const u = me();
+        if (!u || u.mentorStatus !== "approved") return fail("Only approved mentors can submit hours.");
+        if (requestIds.length === 0) return fail("Select at least one completed session.");
+        const reqs = requestIds.map((id) => d.requests.find((r) => r.id === id));
+        if (reqs.some((r) => !r || r.mentorUserId !== u.id || r.status !== "completed"))
+          return fail("Only your own completed sessions can be submitted.");
+        if (requestIds.some((id) => ["pending", "approved"].includes(hoursStatus(d, id))))
+          return fail("Some of these sessions were already submitted.");
+        if (note.length > 500) return fail("Keep the note under 500 characters.");
+        const sub: HoursSubmission = {
+          id: uid("h"),
+          mentorUserId: u.id,
+          requestIds,
+          totalMinutes: reqs.reduce((sum, r) => sum + (r!.durationMinutes ?? 0), 0),
+          note: note.trim(),
+          status: "pending",
+          reviewerNote: "",
+          createdAt: now(),
+          reviewedAt: null,
+        };
+        commit({ ...d, hoursSubmissions: [sub, ...d.hoursSubmissions] });
+        return ok(sub);
+      },
+
+      /** School administrator verifies (or rejects) a volunteer-hour submission. */
+      reviewHours(id: string, decision: "approved" | "rejected", note = ""): Result<null> {
+        const d = current();
+        if (!me()?.isAdmin) return fail("Administrator access required.");
+        const sub = d.hoursSubmissions.find((x) => x.id === id);
+        if (!sub) return fail("Submission not found.");
+        if (sub.status !== "pending") return fail("This submission was already reviewed.");
+        if (decision === "rejected" && note.trim().length < 3) return fail("Please add a short reason so the mentor knows what to fix.");
+        commit({
+          ...d,
+          hoursSubmissions: d.hoursSubmissions.map((x) =>
+            x.id === id ? { ...x, status: decision, reviewerNote: note.trim(), reviewedAt: now() } : x,
+          ),
+        });
+        return ok(null);
       },
 
       // ── Mentor applications ────────────────────────────────────────────────
@@ -317,13 +424,17 @@ function useStoreImpl() {
           name: input.name.trim(),
           grade: input.grade,
           categories: input.categories,
+          otherArea: input.otherArea.trim(),
           expertise: input.expertise.trim(),
-          achievements: input.achievements.trim(),
+          achievements: input.achievements
+            .filter((x) => x.text.trim())
+            .map((x) => ({ text: x.text.trim(), grade: x.grade })),
           experience: input.experience.trim(),
           motivation: input.motivation.trim(),
           topics: input.topics.trim(),
           availability: input.availability.trim(),
           formats: input.formats,
+          introVideoId: input.introVideoId,
           status: "pending",
           reviewNote: "",
           createdAt: now(),
@@ -356,7 +467,8 @@ function useStoreImpl() {
             grade: a.grade,
             headline: a.expertise,
             categories: a.categories,
-            achievements: toList(a.achievements),
+            otherAreas: a.otherArea ? [a.otherArea] : [],
+            achievements: a.achievements.map((x) => `${x.text} (${/^\d+$/.test(x.grade) ? `Grade ${x.grade}` : x.grade})`),
             intro: a.motivation.length > 160 ? a.motivation.slice(0, 157) + "…" : a.motivation,
             bio: a.motivation,
             experience: toList(a.experience),
@@ -365,6 +477,8 @@ function useStoreImpl() {
             formats: a.formats,
             availability: "available",
             availabilityNote: a.availability,
+            introVideoId: a.introVideoId,
+            slots: existing?.slots ?? [],
             listed: true,
             isDemo: applicant?.isDemo ?? false,
             createdAt: existing?.createdAt ?? now(),
