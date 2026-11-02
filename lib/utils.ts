@@ -59,6 +59,7 @@ export function formatDate(iso: string) {
 }
 
 export function formatHours(minutes: number) {
+  if (minutes > 0 && minutes < 60) return `${minutes} min`;
   const h = minutes / 60;
   return `${Number.isInteger(h) ? h : h.toFixed(1)} hr${h === 1 ? "" : "s"}`;
 }
@@ -67,10 +68,23 @@ export function isValidEmail(email: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email.trim());
 }
 
-/** Splits a textarea of "one per line" (or comma-separated) entries into a clean list. */
-export function toList(text: string) {
+/** One entry per line (used by "one per line" form fields). */
+export function lines(text: string) {
   return text
-    .split(/\n|,(?![^(]*\))/)
+    .split("\n")
     .map((s) => s.trim().replace(/^[-•*]\s*/, ""))
     .filter(Boolean);
+}
+
+/**
+ * Turns free text from an application ("a; b; c", one per line, or "a, b, c") into a list.
+ * Commas only split when there is no other separator, and only ", " (so "$2,400" stays intact).
+ */
+export function toList(text: string) {
+  const parts = text
+    .split(/\n|;/)
+    .map((s) => s.trim().replace(/^[-•*]\s*/, ""))
+    .filter(Boolean);
+  if (parts.length === 1) return parts[0]!.split(/,\s+/).map((s) => s.trim()).filter(Boolean);
+  return parts;
 }
