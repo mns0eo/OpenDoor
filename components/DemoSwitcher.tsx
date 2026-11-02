@@ -114,10 +114,12 @@ export function DemoSwitcher() {
         type="button"
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
+        aria-label="Switch demo user"
         className="flex h-11 items-center gap-2 rounded-full bg-navy pl-3 pr-4 text-sm font-medium text-white shadow-lift transition-transform hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal focus-visible:ring-offset-2"
       >
         <Sparkles className="h-4 w-4 text-teal" aria-hidden />
-        <span>Switch demo user</span>
+        <span className="hidden sm:inline">Switch demo user</span>
+        <span className="sm:hidden">Demo</span>
         {user && <span className="hidden rounded-full bg-white/15 px-2 py-0.5 text-xs sm:inline">{user.name.split(" ")[0]}</span>}
       </button>
     </div>
