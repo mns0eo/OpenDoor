@@ -1,0 +1,35 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+}
+
+html {
+  scroll-behavior: smooth;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  @apply bg-paper text-ink antialiased;
+  font-feature-settings: "ss01", "cv11";
+}
+
+::selection {
+  @apply bg-teal/25 text-navy;
+}
+
+/* subtle dotted grid used behind hero sections */
+.bg-grid {
+  background-image: radial-gradient(rgba(20, 33, 61, 0.09) 1px, transparent 1px);
+  background-size: 22px 22px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
