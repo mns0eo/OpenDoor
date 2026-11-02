@@ -31,14 +31,12 @@ Then close and reopen your terminal.
 **Step 1 — Get the code.** If you haven't already:
 
 ```bash
-git clone https://github.com/mns0eo/eclat.git
-cd eclat
-git checkout claude/opendoor-mentoring-mvp-kbft2a
+git clone https://github.com/mns0eo/opendoor.git
 ```
 
-(Or download the ZIP from GitHub and unzip it.)
+(Or on GitHub click **Code → Download ZIP** and unzip it.)
 
-**Step 2 — Go into the OpenDoor folder.** The app lives in the `opendoor` folder:
+**Step 2 — Go into the project folder:**
 
 ```bash
 cd opendoor
@@ -126,7 +124,7 @@ fictional data.
 | Real accounts & email verification | A Supabase project + Supabase Auth (school email domain only) |
 | Shared database (everyone sees the same data) | Supabase Postgres — run `supabase/schema.sql`, then re-implement `lib/store.tsx` actions with Supabase calls |
 | Server-enforced permissions | The Row Level Security policies in `supabase/schema.sql` (demo checks run in the browser only) |
-| Hosting | Deploy the `opendoor` folder to Vercel (set **Root Directory** = `opendoor`) |
+| Hosting | Import this repository into Vercel (no extra settings needed) |
 | Email notifications | An email provider (e.g. Resend) |
 | Future roadmap | Payments, verified volunteer hours/certificates, video intros, résumés, messaging, video calls, AI matching |
 

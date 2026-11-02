@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
-  // OpenDoor lives in a sub-folder of a larger repo; pin the workspace root here.
+  // Pin the workspace root so Next.js never picks up a lockfile from a parent folder.
   outputFileTracingRoot: path.dirname(fileURLToPath(import.meta.url)),
 };
 export default nextConfig;
